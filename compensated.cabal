@@ -75,5 +75,9 @@ test-suite doctests
       doctest        >= 0.9.1,
       filepath,
       generic-deriving,
+      numbers,
+      scientific,
       semigroups     >= 0.9,
-      simple-reflect >= 0.3.1
+      simple-reflect >= 0.3.1,
+      QuickCheck,
+      template-haskell >= 2.8

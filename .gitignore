@@ -33,3 +33,5 @@ missing
 www
 stamp-h1
 config.h.in
+.cabal-sandbox/
+cabal.sandbox.config

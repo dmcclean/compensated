@@ -83,7 +83,47 @@ import Text.Read as T
 import Text.Show as T
 
 -- $setup
--- >>> :load Numeric.Compensated
+-- >>> import Test.QuickCheck.Arbitrary
+-- >>> import Test.QuickCheck.Gen
+-- >>> import Test.QuickCheck.Property
+-- >>> import Control.Applicative
+-- >>> import Data.Number.CReal
+-- >>> import Data.Scientific
+-- >>> :set -XNoMonomorphismRestriction
+-- >>> :set -XExtendedDefaultRules
+-- >>> :set -XRankNTypes
+-- >>> instance (RealFloat a, Compensable a, Arbitrary a) => Arbitrary (Compensated a) where arbitrary = (\x y -> add x y compensated) <$> arbitrary <*> arbitrary
+-- >>> let commutative op a b = (a `op` b) == (b `op` a)
+-- >>> :{
+-- let asRational :: CReal -> Rational
+--     asRational = toRational . (Prelude.read :: String -> Scientific) . (showCReal 35)
+--     approximatesWithinRelative :: (Compensable b) => Rational -> (forall a.(Floating a) => a -> a) -> Compensated b -> Bool
+--     approximatesWithinRelative eps f x = (y' == 0) || (minRatio <= ratio && ratio <= maxRatio)
+--       where
+--         f' :: Compensable b => Compensated b -> Rational
+--         f' = asRational . (f :: CReal -> CReal) . fromRational . toRational
+--         f'' :: Compensable b => Compensated b -> Rational
+--         f'' = toRational . f
+--         y = f' x -- perform the calculation at CReal
+--         y' = f'' x -- perform the calculation at Compensated b
+--         ratio = y / y'
+--         minRatio = (1 / (1 + eps))
+--         maxRatio = ((1 + eps) / 1) 
+--     approximatesWithinRelative2 :: (Compensable b) => Rational -> (forall a.(Floating a) => a -> a -> a) -> Compensated b -> Compensated b -> Bool
+--     approximatesWithinRelative2 eps f x y = (z' == 0) || (minRatio <= ratio && ratio <= maxRatio)
+--       where
+--         asCReal :: Compensable b => Compensated b -> CReal
+--         asCReal = fromRational . toRational
+--         f' :: Compensable b => Compensated b -> Compensated b -> Rational
+--         f' x y = asRational $ f (asCReal x) (asCReal y)
+--         f'' :: Compensable b => Compensated b -> Compensated b -> Rational
+--         f'' x y = toRational $ f x y
+--         z = f' x y
+--         z' = f'' x y
+--         ratio = z / z'
+--         minRatio = (1 / (1 + eps))
+--         maxRatio = ((1 + eps) / 1) 
+-- :}
 
 {-# ANN module "hlint: ignore Use -" #-}
 {-# ANN module "hlint: ignore Use curry" #-}
@@ -372,6 +412,13 @@ kahan :: (Foldable f, Compensable a) => f a -> Compensated a
 kahan = Foldable.foldr (+^) mempty
 {-# INLINE kahan #-}
 
+-- | Compensated arithmetic.
+--
+-- prop> approximatesWithinRelative2 1e-30 (+) :: Compensated Double -> Compensated Double -> Bool
+-- prop> approximatesWithinRelative2 1e-30 (-) :: Compensated Double -> Compensated Double -> Bool
+-- prop> approximatesWithinRelative2 1e-30 (*) :: Compensated Double -> Compensated Double -> Bool
+-- prop> approximatesWithinRelative 1e-30 (negate) :: Compensated Double -> Bool
+-- prop> approximatesWithinRelative 1e-30 (abs) :: Compensated Double -> Bool
 instance Compensable a => Num (Compensated a) where
   m + n =
     with m $ \a  b  ->
@@ -469,6 +516,10 @@ instance Compensable a => Enum (Compensated a) where
             | otherwise = []
   {-# INLINE enumFromThenTo #-}
 
+-- | Compensated fractional arithmetic.
+--
+-- prop> approximatesWithinRelative2 1e-30 (/) :: Compensated Double -> Compensated Double -> Bool
+-- prop> approximatesWithinRelative 1e-30 (recip) :: Compensated Double -> Bool
 instance Compensable a => Fractional (Compensated a) where
   recip m = with m $ \a b -> add (recip a) (-b / (a * a)) compensated
   {-# INLINE recip #-}
@@ -595,6 +646,10 @@ instance (Compensable a, Unbox a) => G.Vector U.Vector (Compensated a) where
 -- | /NB:/ Experimental and partially implemented.
 --
 -- Other than sqrt, the accuracy of these is basically uncalculated! In fact many of these are known to be wrong! Patches and improvements are welcome.
+--
+-- prop> approximatesWithinRelative 1e-30 sin :: Compensated Double -> Bool
+-- prop> approximatesWithinRelative 1e-30 cos :: Compensated Double -> Bool
+-- prop> approximatesWithinRelative 1e-30 tan :: Compensated Double -> Bool
 instance Compensable a => Floating (Compensated a) where
 #ifdef SPECIALIZE_INSTANCES
   {-# SPECIALIZE instance Floating (Compensated Double) #-}
